@@ -1,7 +1,7 @@
 {
   "name": "user",
   "version": "1.0.0-0",
-  "description": "user - @imqueue based service",
+  "description": "@imqueue Car-Wash tutorial: MongoDB-backed user & garage RPC microservice",
   "keywords": [],
   "type": "module",
   "main": "index.js",
