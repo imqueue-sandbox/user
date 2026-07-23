@@ -1,7 +1,7 @@
 /*!
  * ISC License
  *
- * Copyright (c) 2018, Imqueue Sandbox
+ * Copyright (c) 2026, Imqueue Sandbox
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -15,5 +15,5 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
-export * from './encryption';
-export * from './value';
+export * from './encryption.js';
+export * from './value.js';

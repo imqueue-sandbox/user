@@ -1,12 +1,12 @@
 /*!
  * ISC License
- * 
- * Copyright (c) 2018, Imqueue Sandbox
- * 
+ *
+ * Copyright (c) 2026, Imqueue Sandbox
+ *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
  * copyright notice and this permission notice appear in all copies.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
  * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
  * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
@@ -15,23 +15,29 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
-import {
-    IMQServiceOptions,
-    DEFAULT_IMQ_SERVICE_OPTIONS as opts,
-} from '@imqueue/rpc';
-import { config as initEnvironment } from 'dotenv';
+import type { IMQServiceOptions } from '@imqueue/rpc';
+import { DEFAULT_IMQ_SERVICE_OPTIONS as opts } from '@imqueue/rpc';
 
-initEnvironment();
+try {
+    // native .env files support; throws when no .env file exists
+    process.loadEnvFile();
+} catch {
+    /* no .env file - rely on the process environment */
+}
 
 export const serviceOptions: Partial<IMQServiceOptions> = {
     cluster: (process.env['IMQ_REDIS'] || `${opts.host}:${opts.port}`)
-        .split(',').map((instance: string) => {
+        .split(',')
+        .map((instance: string) => {
             const [host, port] = instance.split(':');
+
             return { host, port: Number(port) };
         }),
 };
 
-export const USER_DB: string = process.env['USER_DB'] ||
-    'mongodb://localhost/user';
+export const USER_DB: string =
+    process.env['USER_DB'] || 'mongodb://localhost/user';
 
 export const MAX_USER_CARS_COUNT: number = 6;
+
+export const BCRYPT_ROUNDS: number = Number(process.env['BCRYPT_ROUNDS']) || 10;

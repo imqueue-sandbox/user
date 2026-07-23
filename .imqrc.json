@@ -1,0 +1,6 @@
+{
+  "ci": {
+    "provider": "github-actions"
+  },
+  "templatesRef": "v4"
+}

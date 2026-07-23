@@ -1,4 +1,8 @@
-FROM node:8.12.0
+############### 1. BASE STAGE ###############
+FROM node:24.18.0-alpine AS base
+
+RUN apk update
+RUN apk --no-cache add -qU dbus
 
 # Environment variables
 ENV PATH /opt/app/node_modules/.bin:$PATH
@@ -7,13 +11,25 @@ ENV PATH /opt/app/node_modules/.bin:$PATH
 RUN mkdir -p /opt/app
 WORKDIR /opt/app
 
+
+############### 2. BUILD STAGE ###############
+FROM base AS build
+
 # Install app dependencies
-COPY package.json /opt/app/
-RUN npm i
+COPY package*.json ./
+RUN npm set progress=false
+RUN npm ci --ignore-scripts
 
 # Bundle app package files
-COPY . /opt/app
-RUN npm i
+COPY . .
+RUN npm run build
+
+
+############### 3. RELEASE STAGE ###############
+FROM base AS release
+
+# Copy pre-built code
+COPY --from=build /opt/app .
 
 # Execute service
-CMD [ "npm", "start" ]
+CMD [ "sh", "-c", "MUID=`dbus-uuidgen` ; echo $MUID > /etc/machine-id ; echo $MUID > /var/lib/dbus/machine-id ; npm start" ]

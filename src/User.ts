@@ -1,12 +1,12 @@
 /*!
  * ISC License
- * 
- * Copyright (c) 2018, Imqueue Sandbox
- * 
+ *
+ * Copyright (c) 2026, Imqueue Sandbox
+ *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
  * copyright notice and this permission notice appear in all copies.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
  * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
  * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
@@ -15,27 +15,47 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
-import { IMQService, expose, profile, IMessageQueue } from '@imqueue/rpc';
-import * as mongoose from 'mongoose';
-import { md5, isEmail } from './helpers';
-import { UserObject, UserFilters, UserCarObject } from './types';
-import { USER_DB, MAX_USER_CARS_COUNT } from '../config';
-import { schema } from './schema';
+import type { IMessageQueue } from '@imqueue/rpc';
+import type { Connection, Model } from 'mongoose';
+import { expose, IMQService, lock, logged, profile } from '@imqueue/rpc';
+import mongoose from 'mongoose';
+import { createRequire } from 'node:module';
+import { USER_DB, MAX_USER_CARS_COUNT } from '../config.js';
 import {
     ADD_CAR_LIMIT_EXCEEDED_ERROR,
     ADD_CAR_DUPLICATE_ERROR,
     ADD_USER_DUPLICATE_ERROR,
     INTERNAL_ERROR,
     INVALID_CAR_ID_ERROR,
-} from './errors';
+} from './errors.js';
+import { hashPassword, isEmail } from './helpers/index.js';
+import { schema } from './schema.js';
+import { UserObject, UserFilters, UserCarObject } from './types/index.js';
+
+const require = createRequire(import.meta.url);
+const pkg = require('../package.json');
 
 /**
  * User service implementation
  */
 export class User extends IMQService {
+    private db: Connection;
+    private UserModel: Model<any>;
 
-    private db: mongoose.Connection;
-    private UserModel: mongoose.Model<any>;
+    /**
+     * Returns current version of running service
+     *
+     * @return {{ name: string, version: string, repository?: string }}
+     */
+    @logged()
+    @lock()
+    @profile()
+    @expose()
+    public version(): { name: string; version: string; repository?: string } {
+        const { name, version, repository } = pkg;
+
+        return { name, version, repository: repository?.url };
+    }
 
     /**
      * Transforms given filters into mongo-specific filters object
@@ -43,15 +63,15 @@ export class User extends IMQService {
      * @param {UserFilters} filters
      * @return {any}
      */
-    private prepare(filters: UserFilters) {
-        for (let filter of Object.keys(filters)) {
+    private prepare(filters: UserFilters): any {
+        for (const filter of Object.keys(filters)) {
             if (~['isAdmin', 'isActive'].indexOf(filter)) {
                 continue;
             }
 
             (filters as any)[filter] = {
                 $regex: (filters as any)[filter],
-                $options: 'i'
+                $options: 'i',
             };
         }
 
@@ -61,21 +81,14 @@ export class User extends IMQService {
     /**
      * Initializes mongo database connection and user schema
      *
-     * @return Promise<any>
+     * @return {Promise<void>}
      */
     @profile()
-    private async initDb(): Promise<any> {
-        return new Promise((resolve, reject) => {
-            mongoose.set('useCreateIndex', true);
-            mongoose.set('useNewUrlParser', true);
-            mongoose.connect(USER_DB);
+    private async initDb(): Promise<void> {
+        await mongoose.connect(USER_DB);
 
-            this.db = mongoose.connection;
-            this.db.on('error', reject);
-            this.db.once('open', resolve);
-
-            this.UserModel = mongoose.model('User', schema);
-        });
+        this.db = mongoose.connection;
+        this.UserModel = mongoose.model('User', schema);
     }
 
     /**
@@ -93,18 +106,22 @@ export class User extends IMQService {
      * Creates new user object in a database
      *
      * @param {UserObject} data
-     * @param {string[]} fields
-     * @return {UserObject}
+     * @param {string[]} [fields]
+     * @return {Promise<UserObject | null>}
      */
     @profile()
-    private async createUser(data: UserObject, fields?: string[]) {
+    private async createUser(
+        data: UserObject,
+        fields?: string[],
+    ): Promise<UserObject | null> {
         try {
             const user = new this.UserModel(data);
+
             await user.save();
 
             return this.fetch(data.email, fields);
         } catch (err) {
-            if (/duplicate key/.test(err)) {
+            if (/duplicate key/.test(String(err))) {
                 throw ADD_USER_DUPLICATE_ERROR;
             } else {
                 throw err;
@@ -116,11 +133,14 @@ export class User extends IMQService {
      * Updates existing user object in a database
      *
      * @param {UserObject} data
-     * @param {string[]} fields
-     * @return {UserObject}
+     * @param {string[]} [fields]
+     * @return {Promise<UserObject | null>}
      */
     @profile()
-    private async updateUser(data: UserObject, fields?: string[]) {
+    private async updateUser(
+        data: UserObject,
+        fields?: string[],
+    ): Promise<UserObject | null> {
         const _id = String(data._id);
 
         delete data._id;
@@ -140,17 +160,15 @@ export class User extends IMQService {
     @expose()
     public async update(
         data: UserObject,
-        fields?: string[]
+        fields?: string[],
     ): Promise<UserObject | null> {
         if (data.password) {
-            data.password = md5(data.password);
+            data.password = await hashPassword(data.password);
         }
 
         if (data._id) {
             return await this.updateUser(data, fields);
-        }
-
-        else {
+        } else {
             return await this.createUser(data, fields);
         }
     }
@@ -165,16 +183,21 @@ export class User extends IMQService {
     @expose()
     public async carsCount(idOrEmail: string): Promise<number> {
         const field = isEmail(idOrEmail) ? 'email' : '_id';
-        const ObjectId = mongoose.Types.ObjectId;
+        const value: any =
+            field === '_id'
+                ? new mongoose.Types.ObjectId(idOrEmail)
+                : idOrEmail;
 
-        if (field === '_id') {
-            idOrEmail = ObjectId(idOrEmail) as any;
-        }
-
-        return ((await this.UserModel.aggregate([
-            { $match: { [field]: idOrEmail } },
-            { $project: { carsCount: { $size: "$cars" } } }
-        ]))[0] || {}).carsCount || 0
+        return (
+            (
+                (
+                    await this.UserModel.aggregate([
+                        { $match: { [field]: value } },
+                        { $project: { carsCount: { $size: '$cars' } } },
+                    ])
+                )[0] || {}
+            ).carsCount || 0
+        );
     }
 
     /**
@@ -189,17 +212,16 @@ export class User extends IMQService {
     @expose()
     public async fetch(
         criteria: string,
-        fields?: string[]
+        fields?: string[],
     ): Promise<UserObject | null> {
-        const ObjectId = mongoose.Types.ObjectId;
-        let query: mongoose.DocumentQuery<UserObject | null, any>;
+        let query: any;
 
         if (isEmail(criteria)) {
-            query = this.UserModel.findOne().where({
-                email: criteria,
-            });
+            query = this.UserModel.findOne().where({ email: criteria });
         } else {
-            query = this.UserModel.findById(ObjectId(criteria));
+            query = this.UserModel.findById(
+                new mongoose.Types.ObjectId(criteria),
+            );
         }
 
         if (fields && fields.length) {
@@ -218,8 +240,8 @@ export class User extends IMQService {
     @profile()
     @expose()
     public async count(filters?: UserFilters): Promise<number> {
-        return await this.UserModel.count(
-            this.prepare(filters || {} as UserFilters)
+        return await this.UserModel.countDocuments(
+            this.prepare(filters || ({} as UserFilters)),
         ).exec();
     }
 
@@ -243,7 +265,7 @@ export class User extends IMQService {
         limit?: number,
     ): Promise<UserObject[]> {
         const query = this.UserModel.find(
-            this.prepare(filters || {} as UserFilters)
+            this.prepare(filters || ({} as UserFilters)),
         );
 
         if (fields && fields.length) {
@@ -258,7 +280,7 @@ export class User extends IMQService {
             query.limit(limit);
         }
 
-        return await query.exec() as UserObject[];
+        return (await query.exec()) as unknown as UserObject[];
     }
 
     /**
@@ -278,7 +300,6 @@ export class User extends IMQService {
         regNumber: string,
         selectedFields?: string[],
     ): Promise<UserObject | null> {
-        const ObjectId = mongoose.Types.ObjectId;
         const carsCount = await this.carsCount(userId);
         let result: any;
 
@@ -288,7 +309,10 @@ export class User extends IMQService {
 
         try {
             result = await this.UserModel.updateOne(
-                { _id: ObjectId(userId), 'cars.regNumber': { $ne: regNumber } },
+                {
+                    _id: new mongoose.Types.ObjectId(userId),
+                    'cars.regNumber': { $ne: regNumber },
+                },
                 { $push: { cars: { carId, regNumber } } },
             ).exec();
         } catch (err) {
@@ -296,11 +320,11 @@ export class User extends IMQService {
             throw INTERNAL_ERROR;
         }
 
-        if (result && result.ok && !result.nModified) {
+        if (result && result.matchedCount && !result.modifiedCount) {
             throw ADD_CAR_DUPLICATE_ERROR;
         }
 
-        if (!(result && result.ok && result.nModified === 1)) {
+        if (!(result && result.modifiedCount === 1)) {
             this.logger.log('addCar() invalid result:', result);
             throw INTERNAL_ERROR;
         }
@@ -323,7 +347,7 @@ export class User extends IMQService {
     ): Promise<UserObject | null> {
         try {
             const user = await this.UserModel.findOne({
-                'cars._id': mongoose.Types.ObjectId(carId)
+                'cars._id': new mongoose.Types.ObjectId(carId),
             });
 
             if (!user) {
@@ -331,8 +355,12 @@ export class User extends IMQService {
             }
 
             await this.UserModel.updateOne(
-                { 'cars._id': mongoose.Types.ObjectId(carId) },
-                { $pull: { cars: { _id: mongoose.Types.ObjectId(carId) } } },
+                { 'cars._id': new mongoose.Types.ObjectId(carId) },
+                {
+                    $pull: {
+                        cars: { _id: new mongoose.Types.ObjectId(carId) },
+                    },
+                },
             ).exec();
 
             return await this.fetch(String(user._id), selectedFields);
@@ -355,11 +383,15 @@ export class User extends IMQService {
         userId: string,
         carId: string,
     ): Promise<UserCarObject | null> {
-        return (await this.UserModel
-            .findOne({ _id: mongoose.Types.ObjectId(userId) })
-            .select(['cars._id', 'cars.carId', 'cars.regNumber'])
-            .exec() || { cars: [] })
-            .cars
-            .find((car: UserCarObject) => String(car._id) === carId) || null;
+        return (
+            (
+                (await this.UserModel.findOne({
+                    _id: new mongoose.Types.ObjectId(userId),
+                })
+                    .select(['cars._id', 'cars.carId', 'cars.regNumber'])
+                    .exec()) || { cars: [] as UserCarObject[] }
+            ).cars.find((car: UserCarObject) => String(car._id) === carId) ||
+            null
+        );
     }
 }

@@ -1,7 +1,7 @@
 /*!
  * ISC License
  *
- * Copyright (c) 2018, Imqueue Sandbox
+ * Copyright (c) 2026, Imqueue Sandbox
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -15,33 +15,33 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
-import { property } from '@imqueue/rpc';
+import { classType, property } from '@imqueue/rpc';
 
 /**
- * Serializable user type
+ * Serializable user filters type
  */
+@classType()
 export class UserFilters {
-
     /**
      * User e-mail address
      * @type {string}
      */
     @property('string', true)
-    email: string;
+    email?: string;
 
     /**
      * Active/inactive user flag
      * @type {boolean}
      */
     @property('boolean', true)
-    isActive: boolean;
+    isActive?: boolean;
 
     /**
      * Admin role flag
      * @type {boolean}
      */
     @property('boolean', true)
-    isAdmin: boolean;
+    isAdmin?: boolean;
 
     /**
      * User's first name field
@@ -56,5 +56,4 @@ export class UserFilters {
      */
     @property('string', true)
     lastName?: string;
-
 }

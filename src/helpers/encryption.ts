@@ -1,7 +1,7 @@
 /*!
  * ISC License
  *
- * Copyright (c) 2018, Imqueue Sandbox
+ * Copyright (c) 2026, Imqueue Sandbox
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -15,14 +15,29 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
-import { createHash } from 'crypto';
+import bcrypt from 'bcryptjs';
+import { BCRYPT_ROUNDS } from '../../config.js';
 
 /**
- * Returns MD5 hash for a given string
+ * Returns a bcrypt hash for a given plain-text password
  *
- * @param {string} data
- * @return {string}
+ * @param {string} password - plain-text password to hash
+ * @return {Promise<string>} - bcrypt hash
  */
-export function md5(data: string): string {
-    return createHash('md5').update(data).digest('hex');
+export async function hashPassword(password: string): Promise<string> {
+    return bcrypt.hash(password, BCRYPT_ROUNDS);
+}
+
+/**
+ * Verifies a plain-text password against a stored bcrypt hash
+ *
+ * @param {string} password - plain-text password to verify
+ * @param {string} hash - previously stored bcrypt hash
+ * @return {Promise<boolean>} - true if the password matches the hash
+ */
+export async function verifyPassword(
+    password: string,
+    hash: string,
+): Promise<boolean> {
+    return bcrypt.compare(password, hash);
 }

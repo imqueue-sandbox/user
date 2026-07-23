@@ -1,7 +1,7 @@
 /*!
  * ISC License
  *
- * Copyright (c) 2018, Imqueue Sandbox
+ * Copyright (c) 2026, Imqueue Sandbox
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -15,12 +15,13 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
-import { property } from '@imqueue/rpc';
-import { UserCarObject } from '.';
+import { classType, property } from '@imqueue/rpc';
+import type { UserCarObject } from './UserCarObject.js';
 
 /**
  * Serializable user type
  */
+@classType()
 export class UserObject {
     /**
      * User identifier

@@ -1,7 +1,7 @@
 /*!
  * ISC License
  *
- * Copyright (c) 2018, Imqueue Sandbox
+ * Copyright (c) 2026, Imqueue Sandbox
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -15,7 +15,7 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
-import * as mongoose from 'mongoose';
+import mongoose from 'mongoose';
 
 export const schema = new mongoose.Schema({
     email: {
@@ -44,16 +44,18 @@ export const schema = new mongoose.Schema({
         required: true,
     },
     cars: {
-        type: [{
-            carId: {
-                type: mongoose.SchemaTypes.String,
-                required: true,
+        type: [
+            {
+                carId: {
+                    type: mongoose.SchemaTypes.String,
+                    required: true,
+                },
+                regNumber: {
+                    type: mongoose.SchemaTypes.String,
+                    required: true,
+                },
             },
-            regNumber: {
-                type: mongoose.SchemaTypes.String,
-                required: true,
-            },
-        }],
+        ],
         required: false,
         default: [],
     },

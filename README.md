@@ -1,10 +1,6 @@
-# User
+# user
 
-User - IMQ based service for IMQ Tutorial
-
-## Requirements
-
- - [MongoDB](https://www.mongodb.com/)
+user - @imqueue based service
 
 ## Usage
 
